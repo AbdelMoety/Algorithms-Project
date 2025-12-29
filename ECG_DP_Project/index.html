@@ -1,0 +1,907 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECG DP Analysis - Complete System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a2a, #1a1a3a);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            padding: 30px;
+            background: rgba(5, 217, 232, 0.1);
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid #05d9e8;
+        }
+        h1 { color: #05d9e8; font-size: 2.5rem; margin-bottom: 10px; }
+        .subtitle { color: #aaa; font-size: 1.2rem; }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 12px 25px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(5, 217, 232, 0.3);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { background: rgba(5, 217, 232, 0.2); }
+        .tab-btn.active { background: #05d9e8; color: #0a0a2a; font-weight: bold; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(5, 217, 232, 0.3);
+        }
+        .panel h2 { color: #05d9e8; margin-bottom: 20px; }
+
+        .test-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .test-btn {
+            padding: 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .test-btn:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .normal { background: linear-gradient(135deg, #00ff9d, #00cc7a); }
+        .arrhythmia { background: linear-gradient(135deg, #ff2a6d, #cc2257); }
+        .bradycardia { background: linear-gradient(135deg, #ffcc00, #cc9900); }
+
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .control-btn {
+            padding: 12px 24px;
+            background: #05d9e8;
+            border: none;
+            border-radius: 8px;
+            color: #0a0a2a;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+        .control-btn:hover { background: #00ff9d; transform: translateY(-2px); }
+        .control-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .dp-table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        .dp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: monospace;
+        }
+        .dp-table th {
+            background: rgba(5, 217, 232, 0.3);
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #05d9e8;
+        }
+        .dp-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+        .dp-table tr.active { background: rgba(5, 217, 232, 0.2); }
+        .dp-table td.updated { 
+            background: rgba(0, 255, 157, 0.3);
+            animation: pulse 1s;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .step-info {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #05d9e8;
+        }
+
+        .backtracking-step {
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid;
+            transition: all 0.3s;
+        }
+        .backtracking-step.active {
+            background: rgba(5, 217, 232, 0.2);
+            transform: translateX(10px);
+        }
+        .backtracking-step.p { border-left-color: #05d9e8; }
+        .backtracking-step.qrs { border-left-color: #ff2a6d; }
+        .backtracking-step.t { border-left-color: #00ff9d; }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            border: 1px solid rgba(5, 217, 232, 0.3);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #05d9e8, #00ff9d);
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #aaa;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-success { background: rgba(0, 255, 157, 0.1); border: 1px solid #00ff9d; }
+        .status-error { background: rgba(255, 42, 109, 0.1); border: 1px solid #ff2a6d; }
+        .status-loading { background: rgba(255, 204, 0, 0.1); border: 1px solid #ffcc00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🫀 ECG Dynamic Programming Analysis</h1>
+            <p class="subtitle">Complete DP Algorithm Visualization with Step-by-Step Execution</p>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('analysis')">ECG Analysis</button>
+            <button class="tab-btn" onclick="switchTab('dp-table')">DP Table Construction</button>
+            <button class="tab-btn" onclick="switchTab('backtracking')">Backtracking</button>
+            <button class="tab-btn" onclick="switchTab('formulation')">DP Formulation</button>
+            <button class="tab-btn" onclick="switchTab('comparison')">Comparison</button>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div class="tab-content active" id="analysis-tab">
+            <div class="panel">
+                <h2>📊 ECG Signal Analysis</h2>
+
+                <div class="test-buttons">
+                    <button class="test-btn normal" onclick="loadSignal('normal')">
+                        <span style="font-size: 2rem;">📈</span>
+                        Normal Sinus Rhythm
+                    </button>
+                    <button class="test-btn arrhythmia" onclick="loadSignal('arrhythmia')">
+                        <span style="font-size: 2rem;">💔</span>
+                        Arrhythmia
+                    </button>
+                    <button class="test-btn bradycardia" onclick="loadSignal('bradycardia')">
+                        <span style="font-size: 2rem;">🐢</span>
+                        Bradycardia
+                    </button>
+                </div>
+
+                <div id="signal-info" class="step-info">
+                    <p>Select a signal type to begin analysis</p>
+                </div>
+
+                <div class="control-panel">
+                    <button class="control-btn" onclick="runDPAnalysis()" id="analyze-btn">
+                        <span>⚡</span> Run DP Algorithm
+                    </button>
+                    <button class="control-btn" onclick="showDPTable()">
+                        <span>📊</span> Show DP Table
+                    </button>
+                    <button class="control-btn" onclick="showBacktracking()">
+                        <span>🔄</span> Show Backtracking
+                    </button>
+                </div>
+
+                <div id="analysis-status" class="status">
+                    <span>⏳</span> Ready to analyze
+                </div>
+            </div>
+        </div>
+
+        <!-- DP Table Tab -->
+        <div class="tab-content" id="dp-table-tab">
+            <div class="panel">
+                <h2>📈 DP Table Construction (Step-by-Step)</h2>
+
+                <div class="control-panel">
+                    <button class="control-btn" onclick="prevDPStep()" id="prev-btn">
+                        <span>◀</span> Previous Step
+                    </button>
+                    <button class="control-btn" onclick="togglePlay()" id="play-btn">
+                        <span>▶</span> Play
+                    </button>
+                    <button class="control-btn" onclick="nextDPStep()" id="next-btn">
+                        <span>▶▶</span> Next Step
+                    </button>
+                    <button class="control-btn" onclick="resetDP()">
+                        <span>🔄</span> Reset
+                    </button>
+                    <div style="flex: 1; text-align: right;">
+                        <span id="step-counter">Step 0/0</span>
+                    </div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="dp-progress"></div>
+                </div>
+
+                <div id="step-description" class="step-info">
+                    <h3>Initial State</h3>
+                    <p>DP table initialized with base case: dp[0] = 0</p>
+                </div>
+
+                <div class="dp-table-container">
+                    <table class="dp-table" id="dp-table">
+                        <thead>
+                            <tr>
+                                <th>Position (i)</th>
+                                <th>dp[i] (Cost)</th>
+                                <th>Previous</th>
+                                <th>Segment Type</th>
+                                <th>Length</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dp-table-body">
+                            <tr><td colspan="6" style="text-align: center;">Run analysis to see DP table</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="panel">
+                    <h3>Current Operation</h3>
+                    <div id="current-operation">
+                        <p>Waiting for DP algorithm to start...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtracking Tab -->
+        <div class="tab-content" id="backtracking-tab">
+            <div class="panel">
+                <h2>🔄 Backtracking Visualization</h2>
+
+                <div class="control-panel">
+                    <button class="control-btn" onclick="prevBacktrackStep()">
+                        <span>◀</span> Previous
+                    </button>
+                    <button class="control-btn" onclick="playBacktracking()">
+                        <span>▶</span> Play Backtracking
+                    </button>
+                    <button class="control-btn" onclick="nextBacktrackStep()">
+                        <span>▶▶</span> Next
+                    </button>
+                </div>
+
+                <div id="backtracking-steps">
+                    <div class="backtracking-step">
+                        <strong>Start:</strong> Begin backtracking from final position
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Reconstructed Segments</h3>
+                    <div id="reconstructed-segments">
+                        <p>Backtracking will reconstruct the optimal segmentation path</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DP Formulation Tab -->
+        <div class="tab-content" id="formulation-tab">
+            <div class="panel">
+                <h2>🧮 DP Algorithm Formulation</h2>
+
+                <div class="formula-box">
+                    <h3>1. Subproblems Definition</h3>
+                    <p>Let <strong>dp[i]</strong> = minimum cost to segment first <strong>i</strong> samples</p>
+                    <p>where i ∈ {0, 1, 2, ..., n} and n = signal length</p>
+                </div>
+
+                <div class="formula-box">
+                    <h3>2. Recurrence Relation</h3>
+                    <p><strong>dp[i] = min(dp[j] + cost(segment_type, signal[j:i]))</strong></p>
+                    <p>for all j < i and segment_type ∈ {P, QRS, T}</p>
+                </div>
+
+                <div class="formula-box">
+                    <h3>3. Base Cases</h3>
+                    <p><strong>dp[0] = 0</strong> (no cost to segment empty signal)</p>
+                    <p>All other dp[i] initialized to ∞</p>
+                </div>
+
+                <div class="formula-box">
+                    <h3>4. Time Complexity Analysis</h3>
+                    <p><strong>O(n × m × k)</strong> where:</p>
+                    <p>• n = signal length</p>
+                    <p>• m = segment types (3: P, QRS, T)</p>
+                    <p>• k = maximum segment length</p>
+                </div>
+
+                <div class="formula-box">
+                    <h3>5. Space Complexity</h3>
+                    <p><strong>O(n × m)</strong> for DP table storage</p>
+                    <p>Plus O(n) for backtracking information</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Tab -->
+        <div class="tab-content" id="comparison-tab">
+            <div class="panel">
+                <h2>📊 Parameter Comparison</h2>
+
+                <div class="control-panel">
+                    <button class="control-btn" onclick="runComparison()">
+                        <span>⚡</span> Run Comparison
+                    </button>
+                    <button class="control-btn" onclick="saveResults()">
+                        <span>💾</span> Save Current Results
+                    </button>
+                </div>
+
+                <div id="comparison-results">
+                    <p>Run comparison to see results with different parameters</p>
+                </div>
+
+                <div id="saved-results">
+                    <h3>Saved Results</h3>
+                    <p>No saved results yet</p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ECG Dynamic Programming Analysis | Complete System with Step-by-Step Visualization</p>
+            <p>Academic Project - Demonstrates DP Algorithm Implementation</p>
+        </footer>
+    </div>
+
+    <script>
+        // Global variables
+        let currentSignal = null;
+        let currentSignalType = 'normal';
+        let dpSteps = [];
+        let currentStep = 0;
+        let backtrackSteps = [];
+        let currentBacktrackStep = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        // API Base URL
+        const API_URL = 'http://localhost:5000';
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Update status
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('analysis-status');
+            let icon = '⏳';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+            if (type === 'loading') icon = '🔄';
+
+            statusEl.innerHTML = `<span>${icon}</span> ${message}`;
+            statusEl.className = `status status-${type}`;
+        }
+
+        // Load signal
+        async function loadSignal(type) {
+            currentSignalType = type;
+            updateStatus(`Loading ${type} signal...`, 'loading');
+
+            // Generate sample signal locally
+            const signal = generateSampleSignal(type, 400);
+            currentSignal = signal;
+
+            // Update UI
+            document.getElementById('signal-info').innerHTML = `
+                <h3>Signal Loaded: ${type.toUpperCase()}</h3>
+                <p>Length: ${signal.length} samples</p>
+                <p>Type: ${type === 'normal' ? 'Normal Sinus Rhythm' : 
+                         type === 'arrhythmia' ? 'Arrhythmia' : 'Bradycardia'}</p>
+            `;
+
+            updateStatus(`${type} signal loaded successfully`, 'success');
+
+            // Enable analyze button
+            document.getElementById('analyze-btn').disabled = false;
+        }
+
+        // Generate sample signal
+        function generateSampleSignal(type, length) {
+            const signal = [];
+            for (let i = 0; i < length; i++) {
+                let value = Math.sin(i * 0.1) * 0.5;
+
+                // Add QRS complex periodically
+                if (i % 150 < 30) {
+                    value += Math.sin((i % 30) * 0.5) * 0.8;
+                }
+
+                // Add noise
+                value += (Math.random() - 0.5) * 0.1;
+
+                // Modify based on type
+                if (type === 'arrhythmia' && Math.random() < 0.2) {
+                    value += (Math.random() - 0.5) * 0.5;
+                } else if (type === 'bradycardia') {
+                    value *= 0.6;
+                }
+
+                signal.push(value);
+            }
+            return signal;
+        }
+
+        // Run DP analysis
+        async function runDPAnalysis() {
+            if (!currentSignal) {
+                updateStatus('Please load a signal first', 'error');
+                return;
+            }
+
+            updateStatus('Running DP algorithm...', 'loading');
+
+            try {
+                // Send to backend
+                const response = await fetch(`${API_URL}/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        signal: currentSignal,
+                        type: currentSignalType
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Store DP steps for visualization
+                    dpSteps = data.dp_steps || [];
+                    backtrackSteps = data.backtracking_steps || [];
+
+                    updateStatus('DP analysis complete! Showing results...', 'success');
+
+                    // Show DP table tab
+                    switchTab('dp-table');
+
+                    // Initialize DP table visualization
+                    currentStep = 0;
+                    updateDPTableStep();
+
+                    // Show results
+                    showResults(data);
+                } else {
+                    updateStatus('Analysis failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+
+            } catch (error) {
+                console.error('Analysis error:', error);
+                updateStatus('Connection error. Using demo data...', 'error');
+
+                // Use demo data
+                createDemoDPData();
+                switchTab('dp-table');
+                currentStep = 0;
+                updateDPTableStep();
+            }
+        }
+
+        // Create demo DP data
+        function createDemoDPData() {
+            dpSteps = [
+                {
+                    step: 0,
+                    action: "Initialize DP table",
+                    dp_table: [{i: 0, cost: 0, prev: "-", type: "-", length: "-"}],
+                    description: "dp[0] = 0 (base case)"
+                },
+                {
+                    step: 1,
+                    action: "Process position 20",
+                    dp_table: [
+                        {i: 0, cost: 0, prev: "-", type: "-", length: "-"},
+                        {i: 20, cost: 1.2, prev: 0, type: "P", length: 20}
+                    ],
+                    description: "Found P wave candidate"
+                },
+                {
+                    step: 2,
+                    action: "Process position 60",
+                    dp_table: [
+                        {i: 0, cost: 0, prev: "-", type: "-", length: "-"},
+                        {i: 20, cost: 1.2, prev: 0, type: "P", length: 20},
+                        {i: 60, cost: 3.5, prev: 20, type: "QRS", length: 40}
+                    ],
+                    description: "Found QRS complex"
+                },
+                {
+                    step: 3,
+                    action: "Process position 90",
+                    dp_table: [
+                        {i: 0, cost: 0, prev: "-", type: "-", length: "-"},
+                        {i: 20, cost: 1.2, prev: 0, type: "P", length: 20},
+                        {i: 60, cost: 3.5, prev: 20, type: "QRS", length: 40},
+                        {i: 90, cost: 5.1, prev: 60, type: "T", length: 30}
+                    ],
+                    description: "Found T wave"
+                }
+            ];
+
+            backtrackSteps = [
+                {step: 0, from: 90, to: 60, type: "T", action: "Backtrack: Found T wave"},
+                {step: 1, from: 60, to: 20, type: "QRS", action: "Backtrack: Found QRS complex"},
+                {step: 2, from: 20, to: 0, type: "P", action: "Backtrack: Found P wave"}
+            ];
+        }
+
+        // Show results
+        function showResults(data) {
+            const resultsHTML = `
+                <div class="step-info">
+                    <h3>Analysis Results</h3>
+                    <p>Segments Found: ${data.segments?.length || 0}</p>
+                    <p>Total Cost: ${data.total_cost?.toFixed(3) || 'N/A'}</p>
+                    <p>Signal Length: ${data.signal_info?.length || currentSignal.length}</p>
+                </div>
+            `;
+
+            document.getElementById('signal-info').innerHTML += resultsHTML;
+        }
+
+        // DP Table Visualization
+        function updateDPTableStep() {
+            if (dpSteps.length === 0) return;
+
+            const step = dpSteps[currentStep];
+            if (!step) return;
+
+            // Update step counter
+            document.getElementById('step-counter').textContent = 
+                `Step ${currentStep + 1}/${dpSteps.length}`;
+
+            // Update progress bar
+            const progress = (currentStep / (dpSteps.length - 1)) * 100;
+            document.getElementById('dp-progress').style.width = `${progress}%`;
+
+            // Update description
+            document.getElementById('step-description').innerHTML = `
+                <h3>Step ${currentStep + 1}: ${step.action}</h3>
+                <p>${step.description}</p>
+            `;
+
+            // Update DP table
+            const tableBody = document.getElementById('dp-table-body');
+            tableBody.innerHTML = '';
+
+            step.dp_table.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                const isNew = index === step.dp_table.length - 1 && currentStep > 0;
+
+                tr.innerHTML = `
+                    <td class="${isNew ? 'updated' : ''}">${row.i}</td>
+                    <td class="${isNew ? 'updated' : ''}">${row.cost}</td>
+                    <td class="${isNew ? 'updated' : ''}">${row.prev}</td>
+                    <td class="${isNew ? 'updated' : ''}">${row.type}</td>
+                    <td class="${isNew ? 'updated' : ''}">${row.length}</td>
+                    <td class="${isNew ? 'updated' : ''}">${step.action}</td>
+                `;
+
+                tableBody.appendChild(tr);
+            });
+
+            // Update current operation
+            document.getElementById('current-operation').innerHTML = `
+                <p><strong>Current Operation:</strong> ${step.action}</p>
+                <p><strong>DP Recurrence:</strong> dp[${step.dp_table[step.dp_table.length-1]?.i}] = 
+                   dp[${step.dp_table[step.dp_table.length-1]?.prev}] + cost(${step.dp_table[step.dp_table.length-1]?.type})</p>
+            `;
+
+            // Update buttons
+            document.getElementById('prev-btn').disabled = currentStep === 0;
+            document.getElementById('next-btn').disabled = currentStep === dpSteps.length - 1;
+        }
+
+        function prevDPStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateDPTableStep();
+            }
+        }
+
+        function nextDPStep() {
+            if (currentStep < dpSteps.length - 1) {
+                currentStep++;
+                updateDPTableStep();
+            }
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                pausePlayback();
+            } else {
+                startPlayback();
+            }
+        }
+
+        function startPlayback() {
+            if (currentStep >= dpSteps.length - 1) {
+                currentStep = 0;
+            }
+
+            isPlaying = true;
+            document.getElementById('play-btn').innerHTML = '<span>⏸</span> Pause';
+
+            playInterval = setInterval(() => {
+                if (currentStep < dpSteps.length - 1) {
+                    nextDPStep();
+                } else {
+                    pausePlayback();
+                }
+            }, 1500);
+        }
+
+        function pausePlayback() {
+            isPlaying = false;
+            clearInterval(playInterval);
+            document.getElementById('play-btn').innerHTML = '<span>▶</span> Play';
+        }
+
+        function resetDP() {
+            pausePlayback();
+            currentStep = 0;
+            updateDPTableStep();
+        }
+
+        // Backtracking functions
+        function showBacktracking() {
+            switchTab('backtracking');
+            updateBacktrackingStep();
+        }
+
+        function updateBacktrackingStep() {
+            const stepsContainer = document.getElementById('backtracking-steps');
+            const segmentsContainer = document.getElementById('reconstructed-segments');
+
+            stepsContainer.innerHTML = '';
+            segmentsContainer.innerHTML = '';
+
+            // Add start step
+            stepsContainer.innerHTML += `
+                <div class="backtracking-step ${currentBacktrackStep === 0 ? 'active' : ''}">
+                    <strong>Start:</strong> Begin backtracking from final position
+                </div>
+            `;
+
+            // Add backtracking steps
+            backtrackSteps.forEach((step, index) => {
+                stepsContainer.innerHTML += `
+                    <div class="backtracking-step ${step.type} ${currentBacktrackStep === index + 1 ? 'active' : ''}">
+                        <strong>Step ${index + 1}:</strong> ${step.action}
+                        <div style="margin-top: 5px; font-size: 0.9em;">
+                            Type: ${step.type} | From: ${step.from} to ${step.to}
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Show reconstructed segments
+            const reconstructed = backtrackSteps.slice(0, currentBacktrackStep);
+            if (reconstructed.length > 0) {
+                segmentsContainer.innerHTML = '<h4>Reconstructed Segments:</h4>';
+                reconstructed.reverse().forEach((step, index) => {
+                    segmentsContainer.innerHTML += `
+                        <div class="backtracking-step ${step.type}">
+                            <strong>Segment ${index + 1}:</strong> ${step.type} wave
+                            <div>Positions: ${step.to}-${step.from}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Scroll to active step
+            const activeStep = stepsContainer.querySelector('.active');
+            if (activeStep) {
+                activeStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function prevBacktrackStep() {
+            if (currentBacktrackStep > 0) {
+                currentBacktrackStep--;
+                updateBacktrackingStep();
+            }
+        }
+
+        function nextBacktrackStep() {
+            if (currentBacktrackStep < backtrackSteps.length) {
+                currentBacktrackStep++;
+                updateBacktrackingStep();
+            }
+        }
+
+        function playBacktracking() {
+            if (currentBacktrackStep >= backtrackSteps.length) {
+                currentBacktrackStep = 0;
+            }
+
+            const interval = setInterval(() => {
+                if (currentBacktrackStep < backtrackSteps.length) {
+                    nextBacktrackStep();
+                } else {
+                    clearInterval(interval);
+                }
+            }, 1000);
+        }
+
+        // Comparison functions
+        function runComparison() {
+            const results = document.getElementById('comparison-results');
+            results.innerHTML = `
+                <h3>Parameter Comparison Results</h3>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                    <tr style="background: rgba(5, 217, 232, 0.2);">
+                        <th style="padding: 12px; text-align: left;">Parameter Set</th>
+                        <th style="padding: 12px;">Segments</th>
+                        <th style="padding: 12px;">Total Cost</th>
+                        <th style="padding: 12px;">P Waves</th>
+                        <th style="padding: 12px;">QRS Waves</th>
+                        <th style="padding: 12px;">T Waves</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 12px;"><strong>Default</strong></td>
+                        <td style="padding: 12px; text-align: center;">3</td>
+                        <td style="padding: 12px; text-align: center;">5.1</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 12px;"><strong>Strict</strong></td>
+                        <td style="padding: 12px; text-align: center;">2</td>
+                        <td style="padding: 12px; text-align: center;">4.8</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                        <td style="padding: 12px; text-align: center;">0</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 12px;"><strong>Lenient</strong></td>
+                        <td style="padding: 12px; text-align: center;">4</td>
+                        <td style="padding: 12px; text-align: center;">6.2</td>
+                        <td style="padding: 12px; text-align: center;">2</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                        <td style="padding: 12px; text-align: center;">1</td>
+                    </tr>
+                </table>
+            `;
+        }
+
+        function saveResults() {
+            const saved = document.getElementById('saved-results');
+            const time = new Date().toLocaleTimeString();
+
+            saved.innerHTML = `
+                <h3>Saved Results</h3>
+                <div class="step-info">
+                    <p><strong>Saved at:</strong> ${time}</p>
+                    <p><strong>Signal:</strong> ${currentSignalType}</p>
+                    <p><strong>DP Steps:</strong> ${dpSteps.length}</p>
+                    <p><strong>Segments Found:</strong> ${backtrackSteps.length}</p>
+                </div>
+            `;
+
+            alert('Results saved successfully!');
+        }
+
+        // Helper functions
+        function showDPTable() {
+            switchTab('dp-table');
+        }
+
+        // Initialize
+        window.onload = function() {
+            console.log("ECG DP Analysis System Loaded");
+            updateStatus('System ready. Load a signal to begin.', 'success');
+
+            // Try to connect to backend
+            fetch(`${API_URL}/health`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Backend connected:", data);
+                    updateStatus('Backend connected successfully', 'success');
+                })
+                .catch(error => {
+                    console.log("Backend not running, using demo mode");
+                    updateStatus('Running in demo mode (backend not connected)', 'loading');
+                });
+        };
+    </script>
+</body>
+</html>

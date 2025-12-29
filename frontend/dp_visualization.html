@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DP Table Visualization - ECG Analysis</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/dp-animation.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        .dp-table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .dp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: monospace;
+        }
+
+        .dp-table th {
+            background: rgba(5, 217, 232, 0.3);
+            padding: 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #05d9e8;
+        }
+
+        .dp-table td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+
+        .dp-table td.active {
+            background: rgba(5, 217, 232, 0.4);
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(5, 217, 232, 0.5);
+        }
+
+        .dp-table td.updated {
+            background: rgba(0, 255, 157, 0.3);
+            animation: cellUpdate 1s;
+        }
+
+        .step-info {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #05d9e8;
+        }
+
+        .step-controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            padding: 12px 24px;
+            background: linear-gradient(90deg, #05d9e8, #00a3cc);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(5, 217, 232, 0.4);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .control-btn.play {
+            background: linear-gradient(90deg, #00ff9d, #00cc7a);
+        }
+
+        .control-btn.pause {
+            background: linear-gradient(90deg, #ffcc00, #cc9900);
+        }
+
+        .control-btn.reset {
+            background: linear-gradient(90deg, #ff2a6d, #cc2257);
+        }
+
+        .backtracking-path {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .path-step {
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid;
+            transition: all 0.3s;
+        }
+
+        .path-step.active {
+            background: rgba(5, 217, 232, 0.2);
+            transform: translateX(10px);
+        }
+
+        .path-step.p-wave { border-left-color: #05d9e8; }
+        .path-step.qrs-wave { border-left-color: #ff2a6d; }
+        .path-step.t-wave { border-left-color: #00ff9d; }
+
+        .complexity-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(5, 217, 232, 0.3);
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            border: 1px solid rgba(5, 217, 232, 0.3);
+        }
+
+        @keyframes cellUpdate {
+            0% { background: rgba(0, 255, 157, 0); }
+            50% { background: rgba(0, 255, 157, 0.6); }
+            100% { background: rgba(0, 255, 157, 0.3); }
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th {
+            background: rgba(5, 217, 232, 0.2);
+            padding: 15px;
+            text-align: left;
+        }
+
+        .comparison-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .saved-results {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+
+        .result-item {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .result-item:hover {
+            background: rgba(5, 217, 232, 0.1);
+            transform: translateX(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="main-header">
+            <h1><i class="fas fa-project-diagram"></i> Dynamic Programming Visualization</h1>
+            <p class="subtitle">Step-by-step DP table construction and backtracking</p>
+        </header>
+
+        <!-- Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('dp-table')">
+                <i class="fas fa-table"></i> DP Table
+            </button>
+            <button class="tab-btn" onclick="switchTab('backtracking')">
+                <i class="fas fa-sitemap"></i> Backtracking
+            </button>
+            <button class="tab-btn" onclick="switchTab('formulation')">
+                <i class="fas fa-calculator"></i> DP Formulation
+            </button>
+            <button class="tab-btn" onclick="switchTab('comparison')">
+                <i class="fas fa-chart-bar"></i> Comparison
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="tab-content">
+            <!-- DP Table Tab -->
+            <div class="tab-pane active" id="dp-table-tab">
+                <div class="panel">
+                    <h2><i class="fas fa-table"></i> DP Table Construction</h2>
+
+                    <!-- Step Controls -->
+                    <div class="step-controls">
+                        <button class="control-btn" onclick="prevStep()" id="prev-btn">
+                            <i class="fas fa-step-backward"></i> Previous
+                        </button>
+                        <button class="control-btn play" onclick="togglePlay()" id="play-btn">
+                            <i class="fas fa-play"></i> Play
+                        </button>
+                        <button class="control-btn" onclick="nextStep()" id="next-btn">
+                            Next <i class="fas fa-step-forward"></i>
+                        </button>
+                        <button class="control-btn reset" onclick="resetSteps()">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                        <div style="flex: 1; text-align: right;">
+                            <span id="step-counter">Step 0/0</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="dp-progress"></div>
+                        </div>
+                    </div>
+
+                    <!-- Current Step Info -->
+                    <div class="step-info" id="step-description">
+                        <h3>Initial State</h3>
+                        <p>DP table initialized. dp[0] = 0 (base case)</p>
+                        <div class="formula-box">
+                            dp[0] = 0
+                        </div>
+                    </div>
+
+                    <!-- DP Table -->
+                    <div class="dp-table-container">
+                        <table class="dp-table" id="dp-table">
+                            <thead>
+                                <tr>
+                                    <th>Position (i)</th>
+                                    <th>dp[i] (Cost)</th>
+                                    <th>Previous</th>
+                                    <th>Segment Type</th>
+                                    <th>Length</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dp-table-body">
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Step Details -->
+                    <div class="panel">
+                        <h3><i class="fas fa-info-circle"></i> Current Operation</h3>
+                        <div id="current-operation">
+                            <p>Waiting for DP algorithm to start...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backtracking Tab -->
+            <div class="tab-pane" id="backtracking-tab">
+                <div class="panel">
+                    <h2><i class="fas fa-sitemap"></i> Backtracking Reconstruction</h2>
+
+                    <div class="step-controls">
+                        <button class="control-btn" onclick="prevBacktrackStep()">
+                            <i class="fas fa-arrow-left"></i> Previous
+                        </button>
+                        <button class="control-btn play" onclick="playBacktracking()">
+                            <i class="fas fa-play"></i> Play Backtracking
+                        </button>
+                        <button class="control-btn" onclick="nextBacktrackStep()">
+                            Next <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="backtracking-path" id="backtracking-path">
+                        <h3>Optimal Path Reconstruction</h3>
+                        <p>Starting from final position, reconstruct optimal segmentation...</p>
+                    </div>
+
+                    <div class="panel">
+                        <h3><i class="fas fa-map-marked-alt"></i> Reconstructed Segments</h3>
+                        <div id="reconstructed-segments">
+                            <!-- Segments will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DP Formulation Tab -->
+            <div class="tab-pane" id="formulation-tab">
+                <div class="panel">
+                    <h2><i class="fas fa-calculator"></i> DP Formulation</h2>
+
+                    <div class="formula-box">
+                        <h3>1. Subproblems Definition</h3>
+                        <p>Let <strong>dp[i]</strong> = minimum cost to segment first <strong>i</strong> samples</p>
+                        <p>Where i ∈ {0, 1, 2, ..., n} and n = signal length</p>
+                    </div>
+
+                    <div class="formula-box">
+                        <h3>2. Recurrence Relation</h3>
+                        <p><strong>dp[i] = min(dp[j] + cost(segment_type, signal[j:i]))</strong></p>
+                        <p>for all j < i and segment_type ∈ {P, QRS, T}</p>
+                        <p>where length constraints: L_min ≤ (i - j) ≤ L_max</p>
+                    </div>
+
+                    <div class="formula-box">
+                        <h3>3. Base Cases</h3>
+                        <p><strong>dp[0] = 0</strong> (no cost to segment empty signal)</p>
+                        <p>All other dp[i] initialized to ∞</p>
+                    </div>
+
+                    <div class="formula-box">
+                        <h3>4. Solution Reconstruction</h3>
+                        <p>Optimal cost = <strong>dp[n]</strong></p>
+                        <p>Backtrack from dp[n] to dp[0] to reconstruct segments</p>
+                    </div>
+
+                    <div class="complexity-card">
+                        <h3><i class="fas fa-clock"></i> Complexity Analysis</h3>
+                        <div id="complexity-details">
+                            <p><strong>Time Complexity:</strong> O(n × m × k)</p>
+                            <p>• n = signal length</p>
+                            <p>• m = segment types (3: P, QRS, T)</p>
+                            <p>• k = maximum segment length</p>
+                            <p><strong>Space Complexity:</strong> O(n × m)</p>
+                            <p>• Storing DP table and backtracking information</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Tab -->
+            <div class="tab-pane" id="comparison-tab">
+                <div class="panel">
+                    <h2><i class="fas fa-chart-bar"></i> Parameter Comparison</h2>
+
+                    <div class="step-controls">
+                        <button class="control-btn" onclick="runComparison()">
+                            <i class="fas fa-play"></i> Run Comparison
+                        </button>
+                        <button class="control-btn" onclick="saveCurrentResults()">
+                            <i class="fas fa-save"></i> Save Results
+                        </button>
+                        <button class="control-btn" onclick="loadSavedResults()">
+                            <i class="fas fa-folder-open"></i> Load Saved
+                        </button>
+                    </div>
+
+                    <div id="comparison-results">
+                        <p>Run comparison to see results with different parameters</p>
+                    </div>
+
+                    <div class="saved-results" id="saved-results">
+                        <h3>Saved Results</h3>
+                        <p>No saved results yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>ECG DP Analysis | Dynamic Programming Visualization</p>
+            <p>Showing: Subproblems | Recurrence Relation | Base Cases | DP Table Construction | Backtracking</p>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="js/dp-visualizer.js"></script>
+    <script src="js/backtracking.js"></script>
+    <script>
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-pane').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Initialize
+        window.onload = function() {
+            console.log("DP Visualization loaded");
+            // You can load a sample DP analysis here
+        };
+    </script>
+</body>
+</html>
